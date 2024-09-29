@@ -1,10 +1,13 @@
 #include <cstdint>		// uint8_t
 #include <cstdio>		// printf, getchar
 #include <cstdlib>		// malloc
+#include <cstring>		// strlen
+#include <ctime>		// time() for srand()
 #include <queue>		// queue
 #include <termios.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <unordered_set>
 #include <vector>
 
 using namespace std;
@@ -12,6 +15,13 @@ using namespace std;
 #define COLOR_NONE	"\e[0m"
 #define BG_RED		"\e[48;5;196m"
 #define BG_GREEN	"\e[48;5;82m"
+
+int offsetX = 10, offsetY = 1;
+// Move cursor to x and y positions
+void gotoxy(int x, int y) {
+	// 0 & 1 is same
+	printf("\033[%d;%dH", y, x);
+}
 
 enum class SnakeState : uint8_t {
 	DEAD = 0,
@@ -24,7 +34,8 @@ class Snake {
 		int fieldWidth, fieldHeight;
 		vector<uint8_t> field;
 		int headpos, tailpos;
-		int food;		// Food eaten
+		int ate;		// Food eaten
+		unordered_set<int> food;
 
 		// 0 - Up
 		// 1 - Down
@@ -42,7 +53,7 @@ class Snake {
 					newHeadPos = headpos - fieldHeight;
 					break;
 				case 1:
-					outBounds = headpos > (fieldWidth * (fieldHeight - 1));
+					outBounds = headpos > (fieldWidth * (fieldHeight - 1) - 1);
 					newHeadPos = headpos + fieldHeight;
 					break;
 				case 2:
@@ -81,6 +92,27 @@ class Snake {
 			}
 			return true;
 		}
+		// Creates food on the map
+		void findFood() {
+			int newFood;
+			// Continue to generate food until space found
+			while (1) {
+				newFood = rand() % (fieldWidth * fieldHeight);
+				// Check if new food collides with body
+				if ((field[newFood/8] >> (newFood % 8)) & 1)
+					continue;
+				// Food right under head
+				if (newFood == headpos)
+					continue;
+				// Food already exists in list
+				if ((food.insert(newFood)).second != true) {
+					continue;
+				}
+				break;
+			}
+			gotoxy(((newFood % fieldWidth) * 2)+3+offsetX, newFood/fieldWidth+2+offsetY);
+			printf("%s  %s", BG_RED, COLOR_NONE);
+		}
 
 	public:
 		// Constructor
@@ -99,6 +131,8 @@ class Snake {
 				grow();
 			}
 			tailpos = startPos;
+
+			findFood();
 		}
 
 		
@@ -119,10 +153,15 @@ class Snake {
 			if (!grow()) {
 				return SnakeState::DEAD;
 			}
-			// Consumes food to grow
-			if (food > 0) {
-				food--;
+			// Consumes ate food to grow
+			if (ate > 0) {
+				ate--;
 				return SnakeState::GROW;
+			}
+			if (food.find(headpos) != food.end()) {
+				food.erase(headpos);
+				ate++;
+				findFood();		// Replenish food
 			}
 			// No food to grow; remove tail
 			// Clear the bit for the tail
@@ -170,11 +209,6 @@ void gend() {
 	t.c_lflag |= ECHO;		// Enable echo
 	tcsetattr(STDIN_FILENO, TCSANOW, &t);
 }
-// Move cursor to x and y positions
-void gotoxy(int x, int y) {
-	// 0 & 1 is same
-	printf("\033[%d;%dH", y, x);
-}
 
 // Print a string at x and y position
 void xyPrint(int x, int y, char*) {}
@@ -188,16 +222,13 @@ void inputBlocking(bool enable) {
 		fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
 }
 
-void spawnFood() {
-}
 
 int main (int argc, char *argv[]) {
+	srand(time(0));
 	ginit();
 
-	int offsetX = 10, offsetY = 1;
-	int fieldWidth = 21, fieldHeight = 21, startPos = 215, startLength = 8;
-
-	// int foodPos = rand() % (fieldWidth * fieldHeight);
+	int fieldWidth = 21, fieldHeight = 21, startPos = 215, snakeLength = 3;
+	// fieldWidth = 3, fieldHeight = 3, startPos=3, snakeLength=3;
 
 	gotoxy(1+offsetX, 1+offsetY);
 	printf("\e[48;5;245m");
@@ -219,11 +250,11 @@ int main (int argc, char *argv[]) {
 	}
 
 	// Create the player instance
-	Snake* player = new Snake(fieldWidth, fieldHeight, startPos, startLength);
+	Snake* player = new Snake(fieldWidth, fieldHeight, startPos, snakeLength);
 	// Draw the snake
 	gotoxy(((startPos % fieldWidth) * 2)+3 + offsetX, startPos/fieldWidth+2 + offsetY);
 	printf("%s", BG_GREEN);
-	for (int i=0; i<startLength; i++) {
+	for (int i=0; i<snakeLength; i++) {
 		printf("  ");
 	}
 	printf("%s", COLOR_NONE);
@@ -231,8 +262,8 @@ int main (int argc, char *argv[]) {
 	inputBlocking(false);
 	int color = 0, kp = 0;
 	char c;
-	int fps = 60;
-	int speed = 10;		// Update per n frames
+	int fps = 120;
+	int speed = 16;		// Update per n frames
 	int loopCount = 0;
 
 	uint8_t direction = 3;	// Needed to prevent turning 180
@@ -242,18 +273,22 @@ int main (int argc, char *argv[]) {
 		uint8_t currentDirection = player -> getDirection();
 		switch (c) {
 			case 'w':
+			case 'k':
 				if (currentDirection != 1)
 					direction = 0;
 				break;
 			case 's':
+			case 'j':
 				if (currentDirection != 0)
 					direction = 1;
 				break;
 			case 'a':
+			case 'h':
 				if (currentDirection != 3)
 					direction = 2;
 				break;
 			case 'd':
+			case 'l':
 				if (currentDirection != 2)
 					direction = 3;
 				break;
@@ -264,6 +299,13 @@ int main (int argc, char *argv[]) {
 				printf("\e[0m%c %d", c, kp);
 				break;
 			*/
+			case ' ':	// Pause
+				while (1) {
+					usleep(1000000 / fps);
+					if (getchar() == ' ')
+						break;
+				}
+				break;
 			default:
 				break;
 		}
@@ -274,21 +316,28 @@ int main (int argc, char *argv[]) {
 		if (loopCount == (speed - 1)) {
 			int oldTailPos = player -> getTailPos();
 			switch (player -> move(direction)) {
-				case SnakeState::DEAD:
-					gotoxy(1, 1);
-					printf("You died!");
-					while (1) {
-						if (getchar() == 'q')
-							break;
+				case SnakeState::DEAD: {
+						char* deathMsg = (char*) "You died!";
+						gotoxy(5+offsetX + fieldWidth*2 - strlen(deathMsg), fieldHeight + 3 + offsetY);
+						printf("%s", deathMsg);
+						while (1) {
+							usleep(1000000 / fps);
+							if (getchar() == 'q')
+								break;
+						}
+						c = 'q';
 					}
-					c = 'q';
 					break;
 				case SnakeState::MOVE:
 					gotoxy(((oldTailPos % fieldWidth+1) * 2)+1+offsetX, oldTailPos/fieldWidth+1 +1 +offsetY);
 					printf("  ");
+					snakeLength--;
 				case SnakeState::GROW:
+					snakeLength++;
 					gotoxy(((player->getHeadPos() % fieldWidth) * 2)+3+offsetX, player->getHeadPos()/fieldWidth+1 +1 +offsetY);
 					printf("%s  %s", BG_GREEN, COLOR_NONE);
+					gotoxy(1 + offsetX, fieldHeight + 3 + offsetY);
+					printf("Length %d", snakeLength);
 					break;
 			}
 		}
