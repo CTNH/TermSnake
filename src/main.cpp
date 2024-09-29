@@ -93,7 +93,7 @@ class Snake {
 			}
 			direction = 3;
 			headpos = startPos;
-			for (int i=0; i<startLength; i++) {
+			for (int i=0; i<startLength-1; i++) {
 				grow();
 			}
 			tailpos = startPos;
@@ -165,8 +165,12 @@ void gend() {
 }
 // Move cursor to x and y positions
 void gotoxy(int x, int y) {
+	// 0 & 1 is same
 	printf("\033[%d;%dH", y, x);
 }
+
+// Print a string at x and y position
+void xyPrint(int x, int y, char*) {}
 
 // Enables / Disables input blocking
 void inputBlocking(bool enable) {
@@ -180,13 +184,32 @@ void inputBlocking(bool enable) {
 int main (int argc, char *argv[]) {
 	ginit();
 
-	// gotoxy(100, 16);
-	// printf("%s  %s", BG_GREEN, COLOR_NONE);
+	int offsetX = 10, offsetY = 1;
+	int fieldWidth = 21, fieldHeight = 21, startPos = 215, startLength = 3;
 
-	int fieldWidth = 30, fieldHeight = 30, startPos = 38, startLength = 3;
+	gotoxy(1+offsetX, 1+offsetY);
+	printf("\e[48;5;245m");
+	for (int i=0; i<fieldWidth+2; i++) {
+		printf("  ");
+	}
+	printf("%s", COLOR_NONE);
+	gotoxy(1 + offsetX, fieldHeight + 2 + offsetY);
+	printf("\e[48;5;245m");
+	for (int i=0; i<fieldWidth+2; i++) {
+		printf("  ");
+	}
+	printf("%s", COLOR_NONE);
+	for (int i=2+offsetY; i<fieldHeight+2+offsetY; i++) {
+		gotoxy(1+offsetX, i);
+		printf("\e[48;5;245m  %s", COLOR_NONE);
+		gotoxy(fieldWidth*2+3+offsetX, i);
+		printf("\e[48;5;245m  %s", COLOR_NONE);
+	}
 
+	// Create the player instance
 	Snake* player = new Snake(fieldWidth, fieldHeight, startPos, startLength);
-	gotoxy(((startPos % fieldWidth) * 2)+2, startPos/fieldWidth+1);
+	// Draw the snake
+	gotoxy(((startPos % fieldWidth) * 2)+3 + offsetX, startPos/fieldWidth+2 + offsetY);
 	printf("%s", BG_GREEN);
 	for (int i=0; i<startLength; i++) {
 		printf("  ");
@@ -214,37 +237,33 @@ int main (int argc, char *argv[]) {
 		}
 		*/
 
-		// gotoxy(100, 20);
-		// printf("\e[48;5;%dm        ", color);
-		// color = (color+1) % 256;
-
-		usleep(1000000 / fps);	// 60 frames per second
+		usleep(1000000 / fps);	// 60 'updates' per second
 
 		loopCount = (loopCount+1) % speed;
 		if (loopCount == (speed - 1)) {
 			int oldTailPos = player -> getTailPos();
 			switch (player -> move()) {
 				case SnakeState::DEAD:
+					gotoxy(1, 1);
+					printf("You died!");
+					while (1) {
+						if (getchar() == ' ')
+							break;
+					}
 					c = 'q';
 					break;
 				case SnakeState::MOVE:
-					gotoxy(((oldTailPos % fieldWidth + 1) * 2), oldTailPos/fieldWidth+1);
+					gotoxy(((oldTailPos % fieldWidth+1) * 2)+1+offsetX, oldTailPos/fieldWidth+1 +1 +offsetY);
 					printf("  ");
 				case SnakeState::GROW:
-					gotoxy(((player->getHeadPos() % fieldWidth) * 2), player->getHeadPos()/fieldWidth+1);
+					gotoxy(((player->getHeadPos() % fieldWidth) * 2)+3+offsetX, player->getHeadPos()/fieldWidth+1 +1 +offsetY);
 					printf("%s  %s", BG_GREEN, COLOR_NONE);
 					break;
 			}
 		}
-
-		gotoxy(1, 50);
-		printf("%d\t%d", player->getHeadPos(), player->getTailPos());
-		// usleep(10000000);
 	}
 	inputBlocking(true);
 
-	gotoxy(1, 1);
-	printf("You died!");
 
 	gend();
 	return 0;
