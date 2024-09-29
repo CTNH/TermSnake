@@ -5,6 +5,7 @@
 #include <termios.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <vector>
 
 using namespace std;
 
@@ -21,7 +22,7 @@ enum class SnakeState : uint8_t {
 class Snake {
 	private:
 		int fieldWidth, fieldHeight;
-		uint8_t* field;
+		vector<uint8_t> field;
 		int headpos, tailpos;
 		int food;		// Food eaten
 
@@ -38,19 +39,19 @@ class Snake {
 			switch (direction) {
 				case 0:
 					outBounds = headpos < fieldWidth;
-					newHeadPos = -fieldHeight;
+					newHeadPos = headpos - fieldHeight;
 					break;
 				case 1:
 					outBounds = headpos > (fieldWidth * (fieldHeight - 1));
-					newHeadPos = fieldHeight;
+					newHeadPos = headpos + fieldHeight;
 					break;
 				case 2:
 					outBounds = (headpos % fieldWidth) == 0;
-					newHeadPos = -1;
+					newHeadPos = headpos - 1;
 					break;
 				case 3:
 					outBounds = (headpos % fieldWidth) == (fieldWidth - 1);
-					newHeadPos = 1;
+					newHeadPos = headpos + 1;
 					break;
 			}
 			if (outBounds or ((field[newHeadPos/8] >> (newHeadPos % 8)) & 1))
@@ -63,6 +64,7 @@ class Snake {
 			if (!growCheck())
 				return false;
 			body.push(direction);
+			field[headpos/8] |= 1 << (headpos % 8);
 			switch (direction) {
 				case 0:
 					headpos -= fieldHeight;
@@ -77,7 +79,6 @@ class Snake {
 					headpos++;
 					break;
 			}
-			field[headpos/8] |= 1 << (headpos % 8);
 			return true;
 		}
 
@@ -86,7 +87,8 @@ class Snake {
 		Snake(int fieldWidth, int fieldHeight, int startPos, int startLength) {
 			this -> fieldWidth = fieldWidth;
 			this -> fieldHeight = fieldHeight;
-			field = (uint8_t*) malloc((fieldHeight * fieldWidth) / 8 + (((fieldWidth * fieldHeight) % 8) > 0));
+			vector<uint8_t> field((fieldHeight * fieldWidth) / 8 + (((fieldWidth * fieldHeight) % 8) > 0), 0);
+			this -> field = field;
 
 			if (startLength < 1) {
 				startLength = 1;
@@ -124,7 +126,7 @@ class Snake {
 			}
 			// No food to grow; remove tail
 			// Clear the bit for the tail
-			field[headpos/8] &= ~(1 << (headpos % 8));
+			field[tailpos/8] &= ~(1 << (tailpos % 8));
 			switch (body.front()) {
 				case 0:
 					tailpos -= fieldHeight;
@@ -186,11 +188,16 @@ void inputBlocking(bool enable) {
 		fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
 }
 
+void spawnFood() {
+}
+
 int main (int argc, char *argv[]) {
 	ginit();
 
 	int offsetX = 10, offsetY = 1;
-	int fieldWidth = 21, fieldHeight = 21, startPos = 215, startLength = 3;
+	int fieldWidth = 21, fieldHeight = 21, startPos = 215, startLength = 8;
+
+	// int foodPos = rand() % (fieldWidth * fieldHeight);
 
 	gotoxy(1+offsetX, 1+offsetY);
 	printf("\e[48;5;245m");
@@ -225,10 +232,10 @@ int main (int argc, char *argv[]) {
 	int color = 0, kp = 0;
 	char c;
 	int fps = 60;
-	int speed = 20;		// Update per n frames
+	int speed = 10;		// Update per n frames
 	int loopCount = 0;
 
-	uint8_t direction;	// Needed to prevent turning 180
+	uint8_t direction = 3;	// Needed to prevent turning 180
 	while (c != 'q') {
 		c = getchar();
 
