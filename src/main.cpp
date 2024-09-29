@@ -45,7 +45,7 @@ class Snake {
 					newHeadPos = fieldHeight;
 					break;
 				case 2:
-					outBounds = headpos % fieldWidth;
+					outBounds = (headpos % fieldWidth) == 0;
 					newHeadPos = -1;
 					break;
 				case 3:
@@ -98,6 +98,7 @@ class Snake {
 			}
 			tailpos = startPos;
 		}
+
 		
 		// Getters for head and tail positions
 		int getHeadPos() {
@@ -106,9 +107,13 @@ class Snake {
 		int getTailPos() {
 			return tailpos;
 		}
+		uint8_t getDirection() {
+			return direction;
+		}
 
 		// Updates snake position
-		SnakeState move() {
+		SnakeState move(uint8_t direction) {
+			this -> direction = direction;
 			if (!grow()) {
 				return SnakeState::DEAD;
 			}
@@ -220,34 +225,53 @@ int main (int argc, char *argv[]) {
 	int color = 0, kp = 0;
 	char c;
 	int fps = 60;
-	int speed = 30;		// Update per n frames
+	int speed = 20;		// Update per n frames
 	int loopCount = 0;
+
+	uint8_t direction;	// Needed to prevent turning 180
 	while (c != 'q') {
 		c = getchar();
 
-		/*
+		uint8_t currentDirection = player -> getDirection();
 		switch (c) {
+			case 'w':
+				if (currentDirection != 1)
+					direction = 0;
+				break;
+			case 's':
+				if (currentDirection != 0)
+					direction = 1;
+				break;
+			case 'a':
+				if (currentDirection != 3)
+					direction = 2;
+				break;
+			case 'd':
+				if (currentDirection != 2)
+					direction = 3;
+				break;
+			/*
 			case ' ' ... '~':
 				kp++;
 				gotoxy(100, 22);
 				printf("\e[0m%c %d", c, kp);
 				break;
+			*/
 			default:
 				break;
 		}
-		*/
 
 		usleep(1000000 / fps);	// 60 'updates' per second
 
 		loopCount = (loopCount+1) % speed;
 		if (loopCount == (speed - 1)) {
 			int oldTailPos = player -> getTailPos();
-			switch (player -> move()) {
+			switch (player -> move(direction)) {
 				case SnakeState::DEAD:
 					gotoxy(1, 1);
 					printf("You died!");
 					while (1) {
-						if (getchar() == ' ')
+						if (getchar() == 'q')
 							break;
 					}
 					c = 'q';
