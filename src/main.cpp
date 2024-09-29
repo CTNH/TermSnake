@@ -217,7 +217,7 @@ void xyPrint(int x, int y, char*) {}
 void inputBlocking(bool enable) {
 	int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
 	if (enable)
-		fcntl(STDIN_FILENO, F_SETFL, flags | ~O_NONBLOCK);
+		fcntl(STDIN_FILENO, F_SETFL, flags & ~O_NONBLOCK);
 	else
 		fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
 }
@@ -229,6 +229,8 @@ int main (int argc, char *argv[]) {
 
 	int fieldWidth = 21, fieldHeight = 21, startPos = 215, snakeLength = 3;
 	// fieldWidth = 3, fieldHeight = 3, startPos=3, snakeLength=3;
+	
+	char* snakeString = (char*) "_|";
 
 	gotoxy(1+offsetX, 1+offsetY);
 	printf("\e[48;5;245m");
@@ -255,7 +257,7 @@ int main (int argc, char *argv[]) {
 	gotoxy(((startPos % fieldWidth) * 2)+3 + offsetX, startPos/fieldWidth+2 + offsetY);
 	printf("%s", BG_GREEN);
 	for (int i=0; i<snakeLength; i++) {
-		printf("  ");
+		printf("%s", snakeString);
 	}
 	printf("%s", COLOR_NONE);
 
@@ -300,11 +302,14 @@ int main (int argc, char *argv[]) {
 				break;
 			*/
 			case ' ':	// Pause
-				while (1) {
-					usleep(1000000 / fps);
-					if (getchar() == ' ')
-						break;
-				}
+				inputBlocking(true);
+				getchar();
+				inputBlocking(false);
+				// while (1) {
+				// 	usleep(1000000 / fps);
+				// 	if (getchar() == ' ')
+				// 		break;
+				// }
 				break;
 			default:
 				break;
@@ -320,11 +325,8 @@ int main (int argc, char *argv[]) {
 						char* deathMsg = (char*) "You died!";
 						gotoxy(5+offsetX + fieldWidth*2 - strlen(deathMsg), fieldHeight + 3 + offsetY);
 						printf("%s", deathMsg);
-						while (1) {
-							usleep(1000000 / fps);
-							if (getchar() == 'q')
-								break;
-						}
+						inputBlocking(true);
+						getchar();
 						c = 'q';
 					}
 					break;
@@ -335,13 +337,14 @@ int main (int argc, char *argv[]) {
 				case SnakeState::GROW:
 					snakeLength++;
 					gotoxy(((player->getHeadPos() % fieldWidth) * 2)+3+offsetX, player->getHeadPos()/fieldWidth+1 +1 +offsetY);
-					printf("%s  %s", BG_GREEN, COLOR_NONE);
+					printf("%s%s%s", BG_GREEN, snakeString, COLOR_NONE);
 					gotoxy(1 + offsetX, fieldHeight + 3 + offsetY);
 					printf("Length %d", snakeLength);
 					break;
 			}
 		}
 	}
+	free(player);
 	inputBlocking(true);
 
 
