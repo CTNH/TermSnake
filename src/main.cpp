@@ -149,39 +149,44 @@ class Snake {
 
 		// Updates snake position
 		SnakeState move(uint8_t direction) {
+			SnakeState result = SnakeState::MOVE;
+			// Consumes ate food to grow
+			if (ate > 0) {
+				ate--;
+				result = SnakeState::GROW;
+			}
+			// No food to grow; remove tail
+			else {
+				// Clear the bit for the tail
+				field[tailpos/8] &= ~(1 << (tailpos % 8));
+				switch (body.front()) {
+					case 0:
+						tailpos -= fieldHeight;
+						break;
+					case 1:
+						tailpos += fieldHeight;
+						break;
+					case 2:
+						tailpos--;
+						break;
+					case 3:
+						tailpos++;
+						break;
+				}
+				body.pop();
+			}
+			// Attempt to grow
 			this -> direction = direction;
 			if (!grow()) {
 				return SnakeState::DEAD;
 			}
-			// Consumes ate food to grow
-			if (ate > 0) {
-				ate--;
-				return SnakeState::GROW;
-			}
-			if (food.find(headpos) != food.end()) {
+			// Eat food if exist
+			if (food.find(headpos) != food.end()) {		// If head position is in list
 				food.erase(headpos);
 				ate++;
 				findFood();		// Replenish food
 			}
-			// No food to grow; remove tail
-			// Clear the bit for the tail
-			field[tailpos/8] &= ~(1 << (tailpos % 8));
-			switch (body.front()) {
-				case 0:
-					tailpos -= fieldHeight;
-					break;
-				case 1:
-					tailpos += fieldHeight;
-					break;
-				case 2:
-					tailpos--;
-					break;
-				case 3:
-					tailpos++;
-					break;
-			}
-			body.pop();
-			return SnakeState::MOVE;
+			return result;
 		}
 };
 
@@ -326,7 +331,7 @@ int main (int argc, char *argv[]) {
 						gotoxy(5+offsetX + fieldWidth*2 - strlen(deathMsg), fieldHeight + 3 + offsetY);
 						printf("%s", deathMsg);
 						inputBlocking(true);
-						getchar();
+						while (getchar() != 'q') ;
 						c = 'q';
 					}
 					break;
