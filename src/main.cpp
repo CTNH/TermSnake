@@ -28,6 +28,12 @@ enum class SnakeState : uint8_t {
 	MOVE = 1,
 	GROW = 2
 };
+enum class Direction : uint8_t {
+	UP    = 0,
+	DOWN  = 1,
+	LEFT  = 2,
+	RIGHT = 3
+};
 
 class Snake {
 	private:
@@ -37,30 +43,26 @@ class Snake {
 		int ate;		// Food eaten
 		unordered_set<int> food;
 
-		// 0 - Up
-		// 1 - Down
-		// 2 - Left
-		// 3 - Right
-		uint8_t direction;		// Head direction
-		queue<uint8_t> body;	// Does not keep track of head
+		Direction direction;		// Head direction
+		queue<Direction> body;	// Does not keep track of head
 
 		bool growCheck() {
 			bool outBounds;		// Whether new head is out of bounds
 			int newHeadPos;		// New head position if grew
 			switch (direction) {
-				case 0:
+				case Direction::UP:
 					outBounds = headpos < fieldWidth;
-					newHeadPos = headpos - fieldHeight;
+					newHeadPos = headpos - fieldWidth;
 					break;
-				case 1:
+				case Direction::DOWN:
 					outBounds = headpos > (fieldWidth * (fieldHeight - 1) - 1);
-					newHeadPos = headpos + fieldHeight;
+					newHeadPos = headpos + fieldWidth;
 					break;
-				case 2:
+				case Direction::LEFT:
 					outBounds = (headpos % fieldWidth) == 0;
 					newHeadPos = headpos - 1;
 					break;
-				case 3:
+				case Direction::RIGHT:
 					outBounds = (headpos % fieldWidth) == (fieldWidth - 1);
 					newHeadPos = headpos + 1;
 					break;
@@ -77,16 +79,16 @@ class Snake {
 			body.push(direction);
 			field[headpos/8] |= 1 << (headpos % 8);
 			switch (direction) {
-				case 0:
-					headpos -= fieldHeight;
+				case Direction::UP:
+					headpos -= fieldWidth;
 					break;
-				case 1:
-					headpos += fieldHeight;
+				case Direction::DOWN:
+					headpos += fieldWidth;
 					break;
-				case 2:
+				case Direction::LEFT:
 					headpos--;
 					break;
-				case 3:
+				case Direction::RIGHT:
 					headpos++;
 					break;
 			}
@@ -125,7 +127,7 @@ class Snake {
 			if (startLength < 1) {
 				startLength = 1;
 			}
-			direction = 3;
+			direction = Direction::RIGHT;
 			headpos = startPos;
 			for (int i=0; i<startLength-1; i++) {
 				grow();
@@ -143,12 +145,12 @@ class Snake {
 		int getTailPos() {
 			return tailpos;
 		}
-		uint8_t getDirection() {
+		Direction getDirection() {
 			return direction;
 		}
 
 		// Updates snake position
-		SnakeState move(uint8_t direction) {
+		SnakeState move(Direction direction) {
 			SnakeState result = SnakeState::MOVE;
 			// Consumes ate food to grow
 			if (ate > 0) {
@@ -160,16 +162,16 @@ class Snake {
 				// Clear the bit for the tail
 				field[tailpos/8] &= ~(1 << (tailpos % 8));
 				switch (body.front()) {
-					case 0:
-						tailpos -= fieldHeight;
+					case Direction::UP:
+						tailpos -= fieldWidth;
 						break;
-					case 1:
-						tailpos += fieldHeight;
+					case Direction::DOWN:
+						tailpos += fieldWidth;
 						break;
-					case 2:
+					case Direction::LEFT:
 						tailpos--;
 						break;
-					case 3:
+					case Direction::RIGHT:
 						tailpos++;
 						break;
 				}
@@ -233,18 +235,19 @@ int main (int argc, char *argv[]) {
 	ginit();
 
 	int fieldWidth = 21, fieldHeight = 21, startPos = 215, snakeLength = 3;
-	// fieldWidth = 3, fieldHeight = 3, startPos=3, snakeLength=3;
+	fieldWidth = 2, fieldHeight = 2, startPos=2, snakeLength=2;
+	fieldWidth = 25, fieldHeight = 20, startPos=253, snakeLength=8;
 	
 	char* snakeString = (char*) "_|";
 
 	gotoxy(1+offsetX, 1+offsetY);
-	printf("\e[48;5;245m");
+	printf("\e[48;5;246m");
 	for (int i=0; i<fieldWidth+2; i++) {
 		printf("  ");
 	}
 	printf("%s", COLOR_NONE);
 	gotoxy(1 + offsetX, fieldHeight + 2 + offsetY);
-	printf("\e[48;5;245m");
+	printf("\e[48;5;246m");
 	for (int i=0; i<fieldWidth+2; i++) {
 		printf("  ");
 	}
@@ -270,51 +273,39 @@ int main (int argc, char *argv[]) {
 	int color = 0, kp = 0;
 	char c;
 	int fps = 120;
-	int speed = 16;		// Update per n frames
+	int speed = 13;		// Update per n frames
 	int loopCount = 0;
 
-	uint8_t direction = 3;	// Needed to prevent turning 180
+	Direction direction = Direction::RIGHT;		// Needed to prevent turning 180
 	while (c != 'q') {
 		c = getchar();
 
-		uint8_t currentDirection = player -> getDirection();
+		Direction currentDirection = player -> getDirection();
 		switch (c) {
 			case 'w':
 			case 'k':
-				if (currentDirection != 1)
-					direction = 0;
+				if (currentDirection != Direction::DOWN)
+					direction = Direction::UP;
 				break;
 			case 's':
 			case 'j':
-				if (currentDirection != 0)
-					direction = 1;
+				if (currentDirection != Direction::UP)
+					direction = Direction::DOWN;
 				break;
 			case 'a':
 			case 'h':
-				if (currentDirection != 3)
-					direction = 2;
+				if (currentDirection != Direction::RIGHT)
+					direction = Direction::LEFT;
 				break;
 			case 'd':
 			case 'l':
-				if (currentDirection != 2)
-					direction = 3;
+				if (currentDirection != Direction::LEFT)
+					direction = Direction::RIGHT;
 				break;
-			/*
-			case ' ' ... '~':
-				kp++;
-				gotoxy(100, 22);
-				printf("\e[0m%c %d", c, kp);
-				break;
-			*/
 			case ' ':	// Pause
 				inputBlocking(true);
 				getchar();
 				inputBlocking(false);
-				// while (1) {
-				// 	usleep(1000000 / fps);
-				// 	if (getchar() == ' ')
-				// 		break;
-				// }
 				break;
 			default:
 				break;
