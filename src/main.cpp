@@ -10,6 +10,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "ANSI_UI.h"
+
 using namespace std;
 
 #define COLOR_NONE	"\e[0m"
@@ -17,11 +19,6 @@ using namespace std;
 #define BG_GREEN	"\e[48;5;82m"
 
 int offsetX = 10, offsetY = 1;
-// Move cursor to x and y positions
-void gotoxy(int x, int y) {
-	// 0 & 1 is same
-	printf("\033[%d;%dH", y, x);
-}
 
 enum class SnakeState : uint8_t {
 	DEAD = 0,
@@ -35,12 +32,12 @@ enum class Direction : uint8_t {
 	RIGHT = 3
 };
 
-class Snake {
+class Snake : public ANSI_UI {
 	private:
 		int fieldWidth, fieldHeight;
 		vector<uint8_t> field;
 		int headpos, tailpos;
-		int ate;		// Food eaten
+		int ate;		// Food eaten to be consumed
 		unordered_set<int> food;
 
 		Direction direction;		// Head direction
@@ -118,27 +115,30 @@ class Snake {
 
 	public:
 		// Constructor
-		Snake(int fieldWidth, int fieldHeight, int startPos, int startLength) {
+		Snake(int fieldWidth, int fieldHeight, int startPos, int startLength, Direction direction) {
 			this -> fieldWidth = fieldWidth;
 			this -> fieldHeight = fieldHeight;
+			// Create field with every space on field as a bit
 			vector<uint8_t> field((fieldHeight * fieldWidth) / 8 + (((fieldWidth * fieldHeight) % 8) > 0), 0);
 			this -> field = field;
-
+			// Ensures snake is valid
 			if (startLength < 1) {
 				startLength = 1;
 			}
-			direction = Direction::RIGHT;
+
+			// Assign initial direction
+			this -> direction = direction;
 			headpos = startPos;
 			for (int i=0; i<startLength-1; i++) {
 				grow();
 			}
 			tailpos = startPos;
 
+			// Generate food
 			findFood();
 		}
 
-		
-		// Getters for head and tail positions
+		// Getters
 		int getHeadPos() {
 			return headpos;
 		}
@@ -159,8 +159,9 @@ class Snake {
 			}
 			// No food to grow; remove tail
 			else {
-				// Clear the bit for the tail
+				// Clear the bit for tail in field
 				field[tailpos/8] &= ~(1 << (tailpos % 8));
+				// Get new tail position by direction of current tail
 				switch (body.front()) {
 					case Direction::UP:
 						tailpos -= fieldWidth;
@@ -175,10 +176,12 @@ class Snake {
 						tailpos++;
 						break;
 				}
+				// Remove tail from body
 				body.pop();
 			}
 			// Attempt to grow
 			this -> direction = direction;
+			// Grow is unsuccessful
 			if (!grow()) {
 				return SnakeState::DEAD;
 			}
@@ -192,47 +195,16 @@ class Snake {
 		}
 };
 
-// Initialize interface
-void ginit() {
-	// Disable buffering
-	struct termios t;
-	tcgetattr(STDIN_FILENO, &t);
-	t.c_lflag &= ~ICANON;	// Disable canonical mode
-	t.c_lflag &= ~ECHO;		// Disable echo
-	tcsetattr(STDIN_FILENO, TCSANOW, &t);
-
-	printf("\e[?1049h");	// Alternative screen buffer
-	printf("\e[?25l");		// Hide cursor
-}
-// Terminate interface
-void gend() {
-	printf("\e[?25h");		// Show cursor
-	printf("\e[?1049l");	// Alternative screen buffer
-
-	// Enable buffering
-	struct termios t;
-	tcgetattr(STDIN_FILENO, &t);
-	t.c_lflag |= ICANON;	// Enable canonical mode
-	t.c_lflag |= ECHO;		// Enable echo
-	tcsetattr(STDIN_FILENO, TCSANOW, &t);
-}
 
 // Print a string at x and y position
 void xyPrint(int x, int y, char*) {}
 
-// Enables / Disables input blocking
-void inputBlocking(bool enable) {
-	int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-	if (enable)
-		fcntl(STDIN_FILENO, F_SETFL, flags & ~O_NONBLOCK);
-	else
-		fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
-}
 
 
 int main (int argc, char *argv[]) {
 	srand(time(0));
-	ginit();
+	ANSI_UI aui;
+	aui.init();
 
 	int fieldWidth = 21, fieldHeight = 21, startPos = 215, snakeLength = 3;
 	fieldWidth = 2, fieldHeight = 2, startPos=2, snakeLength=2;
@@ -240,36 +212,36 @@ int main (int argc, char *argv[]) {
 	
 	char* snakeString = (char*) "_|";
 
-	gotoxy(1+offsetX, 1+offsetY);
+	aui.gotoxy(1+offsetX, 1+offsetY);
 	printf("\e[48;5;246m");
 	for (int i=0; i<fieldWidth+2; i++) {
 		printf("  ");
 	}
 	printf("%s", COLOR_NONE);
-	gotoxy(1 + offsetX, fieldHeight + 2 + offsetY);
+	aui.gotoxy(1 + offsetX, fieldHeight + 2 + offsetY);
 	printf("\e[48;5;246m");
 	for (int i=0; i<fieldWidth+2; i++) {
 		printf("  ");
 	}
 	printf("%s", COLOR_NONE);
 	for (int i=2+offsetY; i<fieldHeight+2+offsetY; i++) {
-		gotoxy(1+offsetX, i);
+		aui.gotoxy(1+offsetX, i);
 		printf("\e[48;5;245m  %s", COLOR_NONE);
-		gotoxy(fieldWidth*2+3+offsetX, i);
+		aui.gotoxy(fieldWidth*2+3+offsetX, i);
 		printf("\e[48;5;245m  %s", COLOR_NONE);
 	}
 
 	// Create the player instance
-	Snake* player = new Snake(fieldWidth, fieldHeight, startPos, snakeLength);
+	Snake* player = new Snake(fieldWidth, fieldHeight, startPos, snakeLength, Direction::RIGHT);
 	// Draw the snake
-	gotoxy(((startPos % fieldWidth) * 2)+3 + offsetX, startPos/fieldWidth+2 + offsetY);
+	aui.gotoxy(((startPos % fieldWidth) * 2)+3 + offsetX, startPos/fieldWidth+2 + offsetY);
 	printf("%s", BG_GREEN);
 	for (int i=0; i<snakeLength; i++) {
 		printf("%s", snakeString);
 	}
 	printf("%s", COLOR_NONE);
 
-	inputBlocking(false);
+	aui.inputBuffering(false);
 	int color = 0, kp = 0;
 	char c;
 	int fps = 120;
@@ -303,9 +275,9 @@ int main (int argc, char *argv[]) {
 					direction = Direction::RIGHT;
 				break;
 			case ' ':	// Pause
-				inputBlocking(true);
+				aui.inputBuffering(true);
 				getchar();
-				inputBlocking(false);
+				aui.inputBuffering(false);
 				break;
 			default:
 				break;
@@ -319,32 +291,31 @@ int main (int argc, char *argv[]) {
 			switch (player -> move(direction)) {
 				case SnakeState::DEAD: {
 						char* deathMsg = (char*) "You died!";
-						gotoxy(5+offsetX + fieldWidth*2 - strlen(deathMsg), fieldHeight + 3 + offsetY);
+						aui.gotoxy(5+offsetX + fieldWidth*2 - strlen(deathMsg), fieldHeight + 3 + offsetY);
 						printf("%s", deathMsg);
-						inputBlocking(true);
-						while (getchar() != 'q') ;
 						c = 'q';
 					}
 					break;
 				case SnakeState::MOVE:
-					gotoxy(((oldTailPos % fieldWidth+1) * 2)+1+offsetX, oldTailPos/fieldWidth+1 +1 +offsetY);
+					aui.gotoxy(((oldTailPos % fieldWidth+1) * 2)+1+offsetX, oldTailPos/fieldWidth+1 +1 +offsetY);
 					printf("  ");
 					snakeLength--;
 				case SnakeState::GROW:
 					snakeLength++;
-					gotoxy(((player->getHeadPos() % fieldWidth) * 2)+3+offsetX, player->getHeadPos()/fieldWidth+1 +1 +offsetY);
+					aui.gotoxy(((player->getHeadPos() % fieldWidth) * 2)+3+offsetX, player->getHeadPos()/fieldWidth+1 +1 +offsetY);
 					printf("%s%s%s", BG_GREEN, snakeString, COLOR_NONE);
-					gotoxy(1 + offsetX, fieldHeight + 3 + offsetY);
+					aui.gotoxy(1 + offsetX, fieldHeight + 3 + offsetY);
 					printf("Length %d", snakeLength);
 					break;
 			}
 		}
 	}
 	free(player);
-	inputBlocking(true);
+	aui.inputBuffering(true);
+	while (getchar() != 'q') ;
 
 
-	gend();
+	aui.end();
 	return 0;
 }
 
