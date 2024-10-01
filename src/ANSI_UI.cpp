@@ -2,12 +2,7 @@
 
 // Initialize interface
 void ANSI_UI:: init() {
-	// Disable buffering
-	struct termios t;
-	tcgetattr(STDIN_FILENO, &t);
-	t.c_lflag &= ~ICANON;	// Disable canonical mode
-	t.c_lflag &= ~ECHO;		// Disable echo
-	tcsetattr(STDIN_FILENO, TCSANOW, &t);
+	inputBuffer(false);
 
 	printf("\e[?1049h");	// Alternative screen buffer
 	printf("\e[?25l");		// Hide cursor
@@ -18,17 +13,24 @@ void ANSI_UI:: end() {
 	printf("\e[?25h");		// Show cursor
 	printf("\e[?1049l");	// Alternative screen buffer
 
-	// Enable buffering
-	struct termios t;
-	tcgetattr(STDIN_FILENO, &t);
-	t.c_lflag |= ICANON;	// Enable canonical mode
-	t.c_lflag |= ECHO;		// Enable echo
-	tcsetattr(STDIN_FILENO, TCSANOW, &t);
+	inputBuffer(true);
 }
 
-// Enables / Disables input buffering / blocking
+// Enables / Disables input blocking
+// Requires enter to continue; enabled by default
+void ANSI_UI:: inputBuffer(bool enable) {
+	struct termios t;
+	tcgetattr(STDIN_FILENO, &t);
+	// Canonical and echo modes
+	if (enable)
+		t.c_lflag |= ICANON | ECHO;
+	else
+		t.c_lflag &= (~ICANON) & (~ECHO);
+	tcsetattr(STDIN_FILENO, TCSANOW, &t);
+}
+// Enables / Disables input blocking
 // Waits for user input to continue; enabled by default
-void ANSI_UI:: inputBuffering(bool enable) {
+void ANSI_UI:: inputBlock(bool enable) {
 	int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
 	if (enable)
 		fcntl(STDIN_FILENO, F_SETFL, flags & ~O_NONBLOCK);

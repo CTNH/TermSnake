@@ -2,8 +2,10 @@
 
 #include <cstdio>	// stdout, fputs
 #include <cstdlib>	// srand
+#include <cstring>	// strlen
 #include <ctime>	// time
 
+const char* Snake:: WALL_CELL = "\e[48;5;245m  \e[0m";
 const char* Snake:: SNAKE_CELL = "\e[48;5;82m_|\e[0m";
 const char* Snake:: FOOD_CELL = "\e[48;5;196m  \e[0m";
 
@@ -53,6 +55,7 @@ bool Snake:: grow() {
 			headpos++;
 			break;
 	}
+	drawCell((char*) SNAKE_CELL, headpos);
 	return true;
 }
 
@@ -75,59 +78,59 @@ void Snake:: findFood() {
 		}
 		break;
 	}
-	gotoxy(((newFood % fieldWidth) * 2) + 3 + fieldOffsetX, newFood / fieldWidth + 2 + fieldOffsetY);
-	fputs(FOOD_CELL, stdout);
+	drawCell((char*) FOOD_CELL, newFood);
 }
 
 // Constructor
-// Snake:: Snake(int fieldWidth, int fieldHeight, int startPos, int startLength, Direction direction) {
-Snake:: Snake(int fieldWidth, int fieldHeight, int fieldOffsetX, int fieldOffsetY, int startPos, int startLength, Direction direction) {
+Snake:: Snake() {
+	Snake(21, 21, 1, 1, 213, 3, Direction::RIGHT);
+}
+Snake:: Snake(int fieldWidth, int fieldHeight, int fieldOffsetX, int fieldOffsetY, int startPos, int startLength, Direction startDirection) {
 	this -> fieldWidth = fieldWidth;
 	this -> fieldHeight = fieldHeight;
 	this -> fieldOffsetX = fieldOffsetX;
 	this -> fieldOffsetY = fieldOffsetY;
-	// Create field with every space on field as a bit
-	vector<uint8_t> field((fieldHeight * fieldWidth) / 8 + (((fieldWidth * fieldHeight) % 8) > 0), 0);
-	this -> field = field;
 	// Ensures snake is valid
 	if (startLength < 1) {
 		startLength = 1;
 	}
 
-	// Assign initial direction
-	this -> direction = direction;
-	headpos = startPos;
-	for (int i=0; i<startLength-1; i++) {
-		grow();
+	bool loop = 1;
+	while (loop) {
+		// Create field with every space on field as a bit
+		vector<uint8_t> field((fieldHeight * fieldWidth) / 8 + (((fieldWidth * fieldHeight) % 8) > 0), 0);
+		this -> field = field;
+
+		length = startLength;
+
+		body = queue<Direction>();	// New body
+
+		direction = startDirection;
+		headpos = startPos;
+		tailpos = startPos;
+
+		ate = 0;
+		food.clear();
+		loop = start();
 	}
-	tailpos = startPos;
-
-	// Generate food
-	findFood();
-}
-
-Snake::Direction Snake:: getDirection() {
-	return direction;
-}
-int Snake:: getHeadPos() {
-	return headpos;
-}
-int Snake:: getTailPos() {
-	return tailpos;
 }
 
 // Updates snake position
 Snake::SnakeState Snake:: move(Direction direction) {
 	SnakeState result = SnakeState::MOVE;
+	int oldTailPos = tailpos;
 	// Consumes ate food to grow
 	if (ate > 0) {
 		ate--;
+		length++;
 		result = SnakeState::GROW;
 	}
 	// No food to grow; remove tail
 	else {
 		// Clear the bit for tail in field
 		field[tailpos/8] &= ~(1 << (tailpos % 8));
+		// Must remove tail before food found but after if grow to not remove if dead
+		drawCell((char*) "  ", oldTailPos);
 		// Get new tail position by direction of current tail
 		switch (body.front()) {
 			case Direction::UP:
@@ -150,6 +153,8 @@ Snake::SnakeState Snake:: move(Direction direction) {
 	this -> direction = direction;
 	// Grow is unsuccessful
 	if (!grow()) {
+		// Redraw snake cell
+		drawCell((char*) SNAKE_CELL, oldTailPos);
 		return SnakeState::DEAD;
 	}
 	// Eat food if exist
@@ -159,5 +164,155 @@ Snake::SnakeState Snake:: move(Direction direction) {
 		findFood();		// Replenish food
 	}
 	return result;
+}
+
+void Snake:: drawCell(char* cell, int pos) {
+	gotoxy(((pos % fieldWidth) * 2) + 3 + fieldOffsetX, pos/fieldWidth + 2 + fieldOffsetY);
+	fputs(cell, stdout);
+}
+
+// Handles UI and gameLoop
+bool Snake:: start() {
+	init();
+
+	// Assign initial direction
+	int startLength = 3;
+	drawCell((char*) SNAKE_CELL, tailpos);
+	for (int i=0; i<startLength-1; i++) {
+		grow();
+	}
+
+	// Generate food
+	findFood();
+
+	// Draw walls
+	// Top Wall
+	gotoxy(1+fieldOffsetX, 1+fieldOffsetY);
+	for (int i=0; i<fieldWidth+2; i++) {
+		fputs(WALL_CELL, stdout);
+	}
+	// Bottom Wall
+	gotoxy(1 + fieldOffsetX, fieldHeight + 2 + fieldOffsetY);
+	for (int i=0; i<fieldWidth+2; i++) {
+		fputs(WALL_CELL, stdout);
+	}
+	// Side Walls
+	for (int i=2+fieldOffsetY; i<fieldHeight+2+fieldOffsetY; i++) {
+		gotoxy(1 + fieldOffsetX, i);
+		fputs(WALL_CELL, stdout);
+		gotoxy(fieldWidth * 2 + 3 + fieldOffsetX, i);
+		fputs(WALL_CELL, stdout);
+	}
+
+	inputBlock(false);
+
+	// Game gameplay loop
+	int ups = 120;		// Updates per second
+	int speed = 13;		// Update per n frames
+	int loopCount = 0;
+
+	Direction nextDirection = direction;	// Used to prevent 180 turns
+	char c;		// To store input
+	while (c != 'q') {
+		c = getchar();
+
+		switch (c) {
+			case 'w':
+			case 'k':
+				if (direction != Direction::DOWN)
+					nextDirection = Direction::UP;
+				break;
+			case 's':
+			case 'j':
+				if (direction != Direction::UP)
+					nextDirection = Direction::DOWN;
+				break;
+			case 'a':
+			case 'h':
+				if (direction != Direction::RIGHT)
+					nextDirection = Direction::LEFT;
+				break;
+			case 'd':
+			case 'l':
+				if (direction != Direction::LEFT)
+					nextDirection = Direction::RIGHT;
+				break;
+			// Pause
+			case ' ':
+				inputBlock(true);
+				gotoxy(5+fieldOffsetX + fieldWidth*2 - 6, fieldHeight + 3 + fieldOffsetY);
+				fputs("Paused", stdout);
+				getchar();
+				gotoxy(5+fieldOffsetX + fieldWidth*2 - 6, fieldHeight + 3 + fieldOffsetY);
+				fputs("      ", stdout);
+				inputBlock(false);
+				break;
+			// Arrows
+			case 27:
+				getchar();	// 91
+				switch (getchar()) {
+					case 65:
+						if (direction != Direction::DOWN)
+							nextDirection = Direction::UP;
+						break;
+					case 66:
+				if (direction != Direction::UP)
+					nextDirection = Direction::DOWN;
+						break;
+					case 67:
+				if (direction != Direction::LEFT)
+					nextDirection = Direction::RIGHT;
+						break;
+					case 68:
+				if (direction != Direction::RIGHT)
+					nextDirection = Direction::LEFT;
+						break;
+				}
+				break;
+			default:
+				break;
+		}
+
+		usleep(1000000 / ups);
+
+		// loopCount = (loopCount + 1) % speed;
+		//if (loopCount == (speed - 1)) {
+		loopCount++;
+		if (loopCount == speed) {
+			loopCount = 0;
+
+			int oldTailPos = tailpos;
+			switch (move(nextDirection)) {
+				case SnakeState::MOVE:
+				case SnakeState::GROW:
+					// drawCell((char*) SNAKE_CELL, headpos);
+					gotoxy(1 + fieldOffsetX, fieldHeight + 3 + fieldOffsetY);
+					printf("Length %d", length);
+					break;
+				case SnakeState::DEAD:
+					char* deathMsg = (char*) "You died!";
+					gotoxy(5+fieldOffsetX + fieldWidth*2 - strlen(deathMsg), fieldHeight + 3 + fieldOffsetY);
+					fputs(deathMsg, stdout);
+					c = 'q';
+					break;
+			}
+		}
+	}
+
+	inputBlock(true);
+
+	gotoxy(1 + fieldOffsetX, fieldHeight + 4 + fieldOffsetY);
+	fputs("Press r to restart, q to quit", stdout);
+	while (1) {
+		c = getchar();
+		if (c == 'q' or c == 'r')
+			break;
+	}
+
+	end();
+
+	if (c == 'r')
+		return true;
+	return false;
 }
 

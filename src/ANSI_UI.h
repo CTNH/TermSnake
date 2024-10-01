@@ -21,9 +21,12 @@ class ANSI_UI {
 		// Terminate interface
 		void end();
 
-		// Enables / Disables input buffering / blocking
+		// Enables / Disables input blocking
+		// Requires enter to continue; enabled by default
+		void inputBuffer(bool enable);
+		// Enables / Disables input blocking
 		// Waits for user input to continue; enabled by default
-		void inputBuffering(bool enable);
+		void inputBlock(bool enable);
 
 		// Move cursor to x and y positions on screen
 		void gotoxy(int x, int y);
