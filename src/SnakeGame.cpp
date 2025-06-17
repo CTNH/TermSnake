@@ -6,7 +6,7 @@
 #include <ctime>	// time
 
 const char* Snake:: WALL_CELL = "\e[48;5;245m  \e[0m";
-const char* Snake:: SNAKE_CELL = "\e[48;5;82m_|\e[0m";
+const char* Snake:: SNAKE_CELL = "\e[48;5;77m--\e[0m";
 const char* Snake:: FOOD_CELL = "\e[48;5;196m  \e[0m";
 
 bool Snake:: growCheck() {
@@ -151,10 +151,24 @@ Snake::SnakeState Snake:: move(Direction direction) {
 	}
 	// Attempt to grow
 	this -> direction = direction;
+	switch (direction) {
+		case Direction::UP:
+			drawCell((char*) "\e[38;5;233;48;5;82m/\\\e[0m", headpos);
+			break;
+		case Direction::DOWN:
+			drawCell((char*) "\e[38;5;233;48;5;82m\\/\e[0m", headpos);
+			break;
+		case Direction::LEFT:
+			drawCell((char*) "\e[38;5;233;48;5;82m< \e[0m", headpos);
+			break;
+		case Direction::RIGHT:
+			drawCell((char*) "\e[38;5;233;48;5;82m >\e[0m", headpos);
+			break;
+	}
 	// Grow is unsuccessful
 	if (!grow()) {
 		// Redraw snake cell
-		drawCell((char*) SNAKE_CELL, oldTailPos);
+		drawCell((char*) "\e[48;5;82m  \e[0m", oldTailPos);
 		return SnakeState::DEAD;
 	}
 	// Eat food if exist
@@ -207,8 +221,8 @@ bool Snake:: start() {
 	inputBlock(false);
 
 	// Game gameplay loop
-	int ups = 120;		// Updates per second
-	int speed = 13;		// Update per n frames
+	int ups = 160;		// Updates per second
+	int speed = 15;		// Update per n frames
 	int loopCount = 0;
 
 	Direction nextDirection = direction;	// Used to prevent 180 turns
